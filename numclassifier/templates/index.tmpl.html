@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+{% load static %}
+
+<html lang="en">
+  <head>
+    <title>MNIST Evaluator</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="{% static "jquery-ui/jquery-ui.theme.min.css" %}" />
+    <link rel="stylesheet" href="{% static "jquery-ui/jquery-ui.min.css" %}" />
+    <link rel="stylesheet" href="{% static "jquery-ui/jquery-ui.structure.min.css" %}" />
+    <style type="text/css">
+      .disabled {
+        background-color: rgb(0.0, 0.0, 0.0, .2);
+        color: rgb(0.0, 0.0, 0.0, .2);
+      }
+      .enabled {
+        background-color: rgb(1.0, 1.0, 1.0, 1.0);
+        color: rgb(1.0, 1.0, 1.0, 1.0);
+      }
+    </style>
+    <script type="text/javascript" src="{% static "jquery/jquery.js" %}"></script>
+    <script type="text/javascript" src="{% static "jquery-ui/jquery-ui.min.js" %}"></script>
+    <script type="text/javascript"><!--
+var canvas, ctx, flag = false;
+var prevX = 0, currX = 0, prevY = 0, currY = 0;
+var dot_flag = false;
+
+$(function() {
+  $("#progressBar").progressbar({ value: 0 });
+});
+
+function enable_div(d) {
+  var _div = $(d);
+  _div.css("visibility", "visible");
+}
+
+function disable_div(d) {
+  var _div = $(d);
+  _div.css("visibility", "hidden");
+}
+
+// Get the position of a touch relative to the canvas
+function getTouchPos(canvasDom, touchEvent) {
+  var rect = canvasDom.getBoundingClientRect();
+  return {
+    x: touchEvent.touches[0].clientX - rect.left,
+    y: touchEvent.touches[0].clientY - rect.top
+  };
+}
+
+function init() {
+  canvas = document.getElementById('can');
+  ctx = canvas.getContext("2d");
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  w = canvas.clientWidth;
+  h = canvas.clientHeight;
+
+  $("#guess_btn").click(function() { guess(); });
+  $("#clear_btn").click(function() { clear(); });
+  $("#runLearnerForm").submit(function(e) {
+    e.preventDefault();
+    learnNewNumber();
+  });
+
+  $("#doLearningPane").removeClass("enabled");
+  $("#doLearningPane").addClass("disabled");
+  $("#truenum").prop("disabled", true);
+  $("#runLearnerButton").prop("disabled", true);
+
+  canvas.addEventListener("mousemove", function (e) {
+    findxy('move', e)
+  }, false);
+  canvas.addEventListener("mousedown", function (e) {
+    findxy('down', e)
+  }, false);
+  canvas.addEventListener("mouseup", function (e) {
+    findxy('up', e)
+  }, false);
+  canvas.addEventListener("mouseout", function (e) {
+    findxy('out', e)
+  }, false);
+
+  canvas.addEventListener("touchstart", function (e) {
+    mousePos = getTouchPos(canvas, e);
+    var touch = e.touches[0];
+    var mouseEvent = new MouseEvent("mousedown", {
+      clientX: touch.clientX,
+      clientY: touch.clientY
+    });
+    canvas.dispatchEvent(mouseEvent);
+  }, false);
+  canvas.addEventListener("touchend", function (e) {
+    var mouseEvent = new MouseEvent("mouseup", {});
+    canvas.dispatchEvent(mouseEvent);
+  }, false);
+  canvas.addEventListener("touchmove", function (e) {
+    var touch = e.touches[0];
+    var mouseEvent = new MouseEvent("mousemove", {
+      clientX: touch.clientX,
+      clientY: touch.clientY
+    });
+    canvas.dispatchEvent(mouseEvent);
+  }, false);
+
+  document.body.addEventListener("touchstart", function (e) {
+    if (e.target == canvas) {
+      e.preventDefault();
+    }
+  }, false);
+  document.body.addEventListener("touchend", function (e) {
+    if (e.target == canvas) {
+      e.preventDefault();
+    }
+  }, false);
+  document.body.addEventListener("touchmove", function (e) {
+    if (e.target == canvas) {
+      e.preventDefault();
+    }
+  }, false);
+}
+
+function draw() {
+  ctx.beginPath();
+  ctx.moveTo(prevX, prevY);
+  ctx.lineTo(currX, currY);
+  ctx.stroke();
+  ctx.closePath();
+}
+
+function clear() {
+  ctx.clearRect(0, 0, w, h);
+  return true;
+}
+
+function findxy(res, e) {
+  if (res == 'down') {
+    prevX = currX;
+    prevY = currY;
+    currX = e.clientX - canvas.offsetLeft;
+    currY = e.clientY - canvas.offsetTop;
+
+    flag = true;
+    dot_flag = true;
+    if (dot_flag) {
+      ctx.beginPath();
+      ctx.fillRect(currX, currY, 1, 1);
+      ctx.closePath();
+      dot_flag = false;
+    }
+  } // if down
+
+  if (res == 'up' || res == "out") {
+    flag = false;
+  }// if up or out
+
+  if ((res == 'move') && flag) {
+    prevX = currX;
+    prevY = currY;
+    currX = e.clientX - canvas.offsetLeft;
+    currY = e.clientY - canvas.offsetTop;
+    if ((currX != prevX) || (currY != prevY)) draw();
+  } // if move
+} // findxy
+
+function runGuess(cst, id_) {
+  $("#img_id").val(id_);
+  $.post("{% url 'guess' %}",
+         { csrfmiddlewaretoken: cst,
+           id: id_ },
+         function(data) {
+           console.log("Got back a guess from {% url 'guess' %}");
+           enable_div("#guessedItem");
+	   enable_div("#correctOutputDiv");
+           $("#progressBar").progressbar({ value: 100 });
+
+           $("#guessedItem").html("Guessed Number: <strong>"
+                                  + data.guess
+                                  + "</strong> [Estimation: "
+                                  + data.estimate + "]");
+           $("#guessedItem").css("border", "3px solid red");
+  });
+}
+  
+function guess() {
+  var cst = $('input[name="csrfmiddlewaretoken"]').val();
+  var imgdata = canvas.toDataURL();
+  $("#progressBar").progressbar({ value: false });
+
+  $.post("{% url 'upload' %}",
+         { csrfmiddlewaretoken: cst,
+           imgBase64: imgdata },
+         function(data) {
+           console.log("Saved to {% url 'upload' %} to id " + data.id);
+           runGuess(cst, data.id);
+         }, "json");
+  return true;
+}
+
+var disabled = true;
+function toggleLearningPane() {
+  if (disabled) {
+    $("#doLearningPane").removeClass("disabled");
+    $("#doLearningPane").addClass("enabled");
+    $("#truenum").prop("disabled", false);
+    $("#runLearnerButton").prop("disabled", false);
+    disabled = false;
+  } else {
+    $("#doLearningPane").removeClass("enabled");
+    $("#doLearningPane").addClass("disabled");
+    $("#truenum").prop("disabled", true);
+    $("#runLearnerButton").prop("disabled", true);
+    disabled = true;
+  }
+}
+
+function learnNewNumber() {
+  $("#progressBar").progressbar({ value: false });
+  $("#doLearningPane").removeClass("enabled");
+  $("#doLearningPane").addClass("disabled");
+  $("#truenum").prop("disabled", true);
+  $("#runLearnerButton").prop("disabled", true);
+  disabled = true;
+
+  $.post("{% url 'learn' %}",
+         $("#runLearnerForm").serialize(),
+         function (data) {
+	   $("#progressBar").progressbar({ value: 100 });
+ });
+}
+
+// -->
+    </script>
+  </head>
+
+  <body onload="init()" style="width:300px">
+    <form onsubmit="return false;" method="post">
+      {% csrf_token %}
+      <canvas id="can"
+              width="224"
+              height="224"
+              style="top:10%;left:10%;border:2px solid;"></canvas>
+      <br />
+      <button id="guess_btn" style="left:10%">Guess</button>
+      <button id="clear_btn" style="left:15%">Clear</button>
+      <br />&nbsp;<br />
+    </form>
+
+    <div id="progressBar"></div>
+    <br />
+    <div id="guessedItem" style="visibility: hidden;"></div>
+    <div id="correctOutputDiv" style="visibility: hidden;">
+
+      <hr />
+
+      <form id="runLearnerForm" method="post">
+        {% csrf_token %}
+        <input type="hidden" id="img_id" name="img_id" value="" />
+        <label>Is the guessed number correct?</label>
+        <input type="checkbox" name="isCorrect"
+               id="isCorrect" onclick="toggleLearningPane()" checked />
+        <div class="disabled" id="doLearningPane">
+          <label>True Value:</label>
+          <input type="number" value="0" min="0" max="9" step="1"
+                 id="truenum" name="truenum" disabled />
+        </div>
+        <input type="submit" id="runLearnerButton" value="Learn" disabled />
+      </form>
+    </div>
+  </body>
+</html>
