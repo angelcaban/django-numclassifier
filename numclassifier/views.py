@@ -22,7 +22,6 @@ from __future__ import unicode_literals
 
 import uuid
 import base64
-import time
 
 from pprint import pprint
 from PIL import Image
