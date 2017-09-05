@@ -3,3 +3,4 @@ include README.rst
 recursive-include numclassifier/migrations *
 recursive-include numclassifier/static *
 recursive-include numclassifier/templates *
+recursive-include numclassifier/pages *
