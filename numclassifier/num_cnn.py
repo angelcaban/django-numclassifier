@@ -22,11 +22,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import os
 import tensorflow as tf
 import numpy as np
 
 from tensorflow.contrib import learn
 from tensorflow.contrib.learn.python.learn.estimators import model_fn as model_fn_lib
+from tensorflow.contrib.learn.python.learn.datasets import mnist
 
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -96,42 +98,45 @@ def concat(first, second):
 
 
 def predict(pixels):
+    cnn_dir = os.environ['VIRTUAL_ENV'] + "/mnist_convnet_model"
     estimator = learn.Estimator(model_fn=cnn_model_fn,
-                                model_dir="/home/angel/mnist_convnet_model")
+                                model_dir=cnn_dir)
     mnist_classifier = learn.SKCompat(estimator)
     
     return mnist_classifier.predict(x=pixels, batch_size=1)
 
 
 def run_learn(pixels, label):
-    mnist = learn.datasets.load_dataset("mnist")
+    cnn_dir = os.environ['VIRTUAL_ENV'] + "/mnist_convnet_model"
+    mnist_dataset = mnist.load_mnist(train_dir=os.environ['VIRTUAL_ENV']+'/MNIST-data')
 
-    train_data = concat(mnist.train.images, pixels)
-    train_labels = concat(mnist.train.labels, label)
+    train_data = concat(mnist_dataset.train.images, pixels)
+    train_labels = concat(mnist_dataset.train.labels, label)
 
-    eval_data = concat(mnist.test.images, pixels)
-    eval_labels = concat(mnist.test.labels, label)
+    eval_data = concat(mnist_dataset.test.images, pixels)
+    eval_labels = concat(mnist_dataset.test.labels, label)
 
     estimator = learn.Estimator(model_fn=cnn_model_fn,
-                                model_dir="/home/angel/mnist_convnet_model")
-    mnist_classifier = learn.SKCompat(estimator)
+                                model_dir=cnn_dir)
+    dataset_classifier = learn.SKCompat(estimator)
 
     tensors_to_log = {"probabilities": "softmax_tensor"}
     logging_hook = tf.train.LoggingTensorHook(tensors=tensors_to_log,
                                               every_n_iter=500)
 
-    mnist_classifier.fit(x=train_data,
-                         y=train_labels,
-                         batch_size=128,
-                         steps=10000,
-                         monitors=[logging_hook])
+    dataset_classifier.fit(x=train_data,
+                           y=train_labels,
+                           batch_size=128,
+                           steps=5000,
+                           monitors=[logging_hook])
 
     metrics = {
         "accuracy": learn.MetricSpec(metric_fn=tf.metrics.accuracy,
                                      prediction_key="classes")
     }
 
-    eval_results = mnist_classifier.score(x=eval_data,
-                                          y=eval_labels,
-                                          metrics=metrics)
-    print ("\n", eval_results, "\n")
+    eval_results = dataset_classifier.score(x=eval_data,
+                                            y=eval_labels,
+                                            metrics=metrics)
+    return eval_results
+

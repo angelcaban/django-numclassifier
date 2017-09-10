@@ -22,6 +22,7 @@ from __future__ import unicode_literals
 
 import uuid
 import base64
+import os
 
 from pprint import pprint
 from PIL import Image
@@ -112,12 +113,13 @@ def guess(request):
 def learn(request):
     if request.method != 'POST':
         return HttpResponseServerError("Only Accepting POSTs")
-    pprint(request.POST)
+
+    os.chdir(os.environ['VIRTUAL_ENV'])
 
     img_id = request.POST["img_id"]
     img_model = get_object_or_404(UserImage, pk=img_id)
     img_model.is_correct_guess = False
-    img_model.correct_guess = int(request.POST["true_num"])
+    img_model.correct_guess = int(request.POST["truenum"])
 
     im = Image.open(img_model.image.path)
     im.thumbnail((28, 28))
@@ -129,5 +131,7 @@ def learn(request):
     img_data = np.array(im_grey_list, dtype=float)
     img_data = np.expand_dims(img_data, axis=0)
 
-    run_learn(pixels=img_data,
-              label=np.array([img_model.correct_guess], dtype=np.int32))
+    results = run_learn(pixels=img_data,
+                        label=np.array([img_model.correct_guess],
+                                       dtype=np.int32))
+    return JsonResponse(results)

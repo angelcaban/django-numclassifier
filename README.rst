@@ -20,3 +20,6 @@ Quick start
 
 3. Run `python manage.py migrate`
 
+4. If running on a web server, make sure that your wsgi.py file contains the environment variable "VIRTUAL_ENV" pointing to the path to a directory that will have read/write access.
+
+

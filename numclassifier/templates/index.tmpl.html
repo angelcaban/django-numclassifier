@@ -224,11 +224,15 @@ function learnNewNumber() {
   $("#runLearnerButton").prop("disabled", true);
   disabled = true;
 
-  $.post("{% url 'learn' %}",
-         $("#runLearnerForm").serialize(),
-         function (data) {
-	   $("#progressBar").progressbar({ value: 100 });
- });
+  var form = $("#runLearnerForm").serialize();
+  form += "&truenum=" + $("#truenum").val();
+  $.post("{% url 'learn' %}", form,
+    function (data) {
+      $("#progressBar").progressbar({ value: 100 });
+    }).fail(function() {
+      $("body").empty();
+      $("body").html("<h2>Looks like the dev made a booboo</h2>");
+    });
 }
 
 // -->
