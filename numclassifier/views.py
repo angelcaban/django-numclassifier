@@ -24,24 +24,25 @@ import uuid
 import base64
 import os
 
-from pprint import pprint
 from PIL import Image
 import numpy as np
 
 from django.shortcuts import render, get_object_or_404
-from django.http import *
+from django.http import JsonResponse, HttpResponseServerError
 
 from .num_cnn import predict, run_learn
-from .models import *
+from .models import UserImage
 
 
 def index(request):
+    """ Main template """
     context = {
     }
     return render(request, 'index.tmpl.html', context)
 
 
 def imgup(request):
+    """ Upload a user's number as a PNG file onto the filesystem """
     if request.method == 'POST':
         img_model = UserImage()
         pngbase64 = request.POST["imgBase64"]
@@ -56,10 +57,10 @@ def imgup(request):
 
         img_model.image.name = str(uuid.uuid4()) + ".png"
 
-        f = open(str(img_model.image.path), 'wb')
-        f.write(bin_png)
-        f.close()
-        
+        imgfile = open(str(img_model.image.path), 'wb')
+        imgfile.write(bin_png)
+        imgfile.close()
+
         img_model.save()
 
         return JsonResponse({'id': img_model.pk})
@@ -79,14 +80,14 @@ def guess(request):
 
     img_id = request.POST["id"]
     img_model = get_object_or_404(UserImage, pk=img_id)
-    
-    im = Image.open(img_model.image.path)
-    im.thumbnail((28, 28))
-    im_array = np.array(im)
+
+    img = Image.open(img_model.image.path)
+    img.thumbnail((28, 28))
+    im_array = np.array(img)
     im_grey_list = []
     for row in im_array:
         im_grey_list.append([np.amax(c) for c in row])
-    
+
     img_data = np.array(im_grey_list, dtype=float)
     img_data = np.expand_dims(img_data, axis=0)
 
@@ -111,6 +112,10 @@ def guess(request):
 
 
 def learn(request):
+    """ Run an individual number against the CNN along with
+        the whole MNIST data.
+        Return JSON With loss & id
+    """
     if request.method != 'POST':
         return HttpResponseServerError("Only Accepting POSTs")
 
@@ -121,9 +126,9 @@ def learn(request):
     img_model.is_correct_guess = False
     img_model.correct_guess = int(request.POST["truenum"])
 
-    im = Image.open(img_model.image.path)
-    im.thumbnail((28, 28))
-    im_array = np.array(im)
+    img = Image.open(img_model.image.path)
+    img.thumbnail((28, 28))
+    im_array = np.array(img)
     im_grey_list = []
     for row in im_array:
         im_grey_list.append([np.amax(c) for c in row])
@@ -134,4 +139,8 @@ def learn(request):
     results = run_learn(pixels=img_data,
                         label=np.array([img_model.correct_guess],
                                        dtype=np.int32))
-    return JsonResponse(results)
+    img_model.save()
+    return JsonResponse({
+        'loss': str(results),
+        'id': img_id,
+    })
